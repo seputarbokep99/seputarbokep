@@ -1,73 +1,98 @@
-// ---------- Firebase init ----------
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const videosCol = db.collection("videos");
+// ---------- Konstanta ----------
+const RAW_BASE = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}/${GH_DATA_PATH}`;
+const API_BASE = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_DATA_PATH}`;
 
 let videos = [];
 let activeTag = null;
 let searchQuery = "";
-let seeded = false;
 let currentPage = 1;
 const PAGE_SIZE = 10;
 
-function uid(){
-  return "v-" + Date.now() + "-" + Math.random().toString(36).slice(2,7);
+// ---------- Auth (token GitHub, per-tab) ----------
+function getToken(){
+  return sessionStorage.getItem("gh_token") || "";
 }
-
-function parseTags(str){
-  return str.split(",").map(t => t.trim()).filter(Boolean);
-}
-
 function isAuthed(){
-  return sessionStorage.getItem("sv_authed") === "yes";
+  return !!getToken();
 }
-
 function updateAuthUI(){
   const loggedIn = isAuthed();
   document.getElementById("btnAdd").hidden = !loggedIn;
   document.getElementById("btnLogin").hidden = loggedIn;
   document.getElementById("btnLogout").hidden = !loggedIn;
-  renderGrid(); // tombol edit di tiap card ikut nyala/mati sesuai status login
+  renderGrid();
 }
-
-function login(code){
-  if(code === ADMIN_PASSCODE){
-    sessionStorage.setItem("sv_authed", "yes");
-    updateAuthUI();
-    return true;
-  }
-  alert("Kode salah.");
-  return false;
-}
-
 function logout(){
-  sessionStorage.removeItem("sv_authed");
+  sessionStorage.removeItem("gh_token");
   updateAuthUI();
 }
 
-// ---------- Realtime listener dari Firestore ----------
-const statusEl = document.getElementById("syncStatus");
-
-videosCol.orderBy("createdAt", "desc").onSnapshot((snapshot) => {
-  videos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-  // Kalau koleksi masih kosong sama sekali (pertama kali dipakai), isi seed sekali.
-  if(videos.length === 0 && !seeded && typeof SEED_VIDEOS !== "undefined"){
-    seeded = true;
-    SEED_VIDEOS.forEach(v => {
-      const { id, ...rest } = v;
-      videosCol.add({ ...rest, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-    });
-    return; // snapshot listener bakal kepanggil lagi otomatis setelah seed masuk
+// ---------- Baca data (publik, semua orang, tanpa token) ----------
+async function loadVideos(){
+  const statusEl = document.getElementById("syncStatus");
+  try{
+    const res = await fetch(`${RAW_BASE}?cb=${Date.now()}`, { cache: "no-store" });
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    videos = await res.json();
+    videos.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    if(statusEl) statusEl.textContent = "";
+  }catch(err){
+    console.error("Gagal load videos.json:", err);
+    if(statusEl) statusEl.textContent = "Gagal muat data dari GitHub. Cek config.js (GH_OWNER/GH_REPO) & pastikan repo publik.";
+    videos = [];
   }
-
-  if(statusEl) statusEl.textContent = "";
   renderTagBar();
   renderGrid();
-}, (err) => {
-  console.error("Firestore error:", err);
-  if(statusEl) statusEl.textContent = "Gagal konek ke database. Cek firebase-config.js & aturan Firestore.";
-});
+}
+
+// ---------- Tulis data (butuh login / token) ----------
+async function saveVideosToGitHub(newVideos, commitMessage){
+  const token = getToken();
+  if(!token) throw new Error("Belum login.");
+
+  // 1. Ambil sha file saat ini (wajib buat update lewat Contents API)
+  const getRes = await fetch(`${API_BASE}?ref=${GH_BRANCH}`, {
+    headers: { Authorization: `token ${token}`, Accept: "application/vnd.github+json" }
+  });
+  if(!getRes.ok) throw new Error("Gagal ambil data terbaru dari GitHub (status " + getRes.status + ")");
+  const fileInfo = await getRes.json();
+
+  // 2. Encode isi baru ke base64 (UTF-8 aman)
+  const jsonStr = JSON.stringify(newVideos, null, 2);
+  const base64Content = btoa(unescape(encodeURIComponent(jsonStr)));
+
+  // 3. Commit lewat PUT
+  const putRes = await fetch(API_BASE, {
+    method: "PUT",
+    headers: {
+      Authorization: `token ${token}`,
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      message: commitMessage,
+      content: base64Content,
+      sha: fileInfo.sha,
+      branch: GH_BRANCH
+    })
+  });
+
+  if(!putRes.ok){
+    const errBody = await putRes.json().catch(() => ({}));
+    throw new Error(errBody.message || ("Gagal commit (status " + putRes.status + ")"));
+  }
+}
+
+function uid(){
+  return "v-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+}
+function parseTags(str){
+  return str.split(",").map(t => t.trim()).filter(Boolean);
+}
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function escapeAttr(str){ return escapeHtml(str); }
 
 function filterByTag(tag){
   activeTag = (activeTag === tag ? null : tag);
@@ -88,7 +113,7 @@ function renderTagBar(){
   const allChip = document.createElement("button");
   allChip.className = "tag-chip" + (activeTag === null ? " active" : "");
   allChip.textContent = "Semua";
-  allChip.onclick = () => { activeTag = null; renderTagBar(); renderGrid(); };
+  allChip.onclick = () => { activeTag = null; currentPage = 1; renderTagBar(); renderGrid(); };
   bar.appendChild(allChip);
 
   allTags.forEach(tag => {
@@ -100,7 +125,7 @@ function renderTagBar(){
   });
 }
 
-// ---------- Render grid ----------
+// ---------- Render grid + pagination ----------
 function renderGrid(){
   const grid = document.getElementById("grid");
   const empty = document.getElementById("emptyState");
@@ -117,18 +142,16 @@ function renderGrid(){
   grid.innerHTML = "";
   empty.hidden = filtered.length > 0;
 
-  const countEl = document.getElementById("videoCount");
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   if(currentPage > totalPages) currentPage = totalPages;
   const start = (currentPage - 1) * PAGE_SIZE;
   const pageItems = filtered.slice(start, start + PAGE_SIZE);
 
+  const countEl = document.getElementById("videoCount");
   if(countEl){
-    if(filtered.length === videos.length){
-      countEl.textContent = `${videos.length} video`;
-    } else {
-      countEl.textContent = `Menampilkan ${filtered.length} dari ${videos.length} video`;
-    }
+    countEl.textContent = filtered.length === videos.length
+      ? `${videos.length} video`
+      : `Menampilkan ${filtered.length} dari ${videos.length} video`;
   }
 
   const loggedIn = isAuthed();
@@ -191,11 +214,6 @@ function renderPagination(totalPages){
   nav.appendChild(makeBtn("Berikutnya ›", currentPage + 1, currentPage === totalPages, false));
 }
 
-function escapeHtml(str){
-  return String(str).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-}
-function escapeAttr(str){ return escapeHtml(str); }
-
 // ---------- Player modal ----------
 function openPlayer(id){
   const v = videos.find(x => x.id === id);
@@ -219,7 +237,7 @@ function openPlayer(id){
 }
 function closePlayer(){
   document.getElementById("playerModal").hidden = true;
-  document.getElementById("playerIframe").src = ""; // stop playback
+  document.getElementById("playerIframe").src = "";
 }
 
 // ---------- Form modal (tambah / edit) ----------
@@ -248,12 +266,16 @@ function closeForm(){
 document.getElementById("videoForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const id = document.getElementById("videoId").value;
+  const isEdit = !!id;
+
   const entry = {
+    id: id || uid(),
     title: document.getElementById("fieldTitle").value.trim(),
     cover: document.getElementById("fieldCover").value.trim(),
     embed: document.getElementById("fieldEmbed").value.trim(),
     tags: parseTags(document.getElementById("fieldTags").value),
-    desc: document.getElementById("fieldDesc").value.trim()
+    desc: document.getElementById("fieldDesc").value.trim(),
+    createdAt: isEdit ? (videos.find(v => v.id === id)?.createdAt || Date.now()) : Date.now()
   };
 
   const submitBtn = e.target.querySelector('button[type="submit"]');
@@ -261,15 +283,18 @@ document.getElementById("videoForm").addEventListener("submit", async (e) => {
   submitBtn.textContent = "Menyimpan…";
 
   try{
-    if(id){
-      await videosCol.doc(id).update(entry);
-    } else {
-      await videosCol.add({ ...entry, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-    }
+    const updated = isEdit
+      ? videos.map(v => v.id === id ? entry : v)
+      : [entry, ...videos];
+
+    await saveVideosToGitHub(updated, isEdit ? `Edit video: ${entry.title}` : `Tambah video: ${entry.title}`);
+    videos = updated;
     closeForm();
+    renderTagBar();
+    renderGrid();
   }catch(err){
     console.error(err);
-    alert("Gagal simpan ke database. Cek koneksi / aturan Firestore kamu.");
+    alert("Gagal simpan ke GitHub: " + err.message);
   }finally{
     submitBtn.disabled = false;
     submitBtn.textContent = "Simpan";
@@ -280,12 +305,18 @@ document.getElementById("btnDelete").addEventListener("click", async () => {
   const id = document.getElementById("videoId").value;
   if(!id) return;
   if(!confirm("Hapus video ini dari koleksi buat SEMUA orang?")) return;
+
+  const target = videos.find(v => v.id === id);
   try{
-    await videosCol.doc(id).delete();
+    const updated = videos.filter(v => v.id !== id);
+    await saveVideosToGitHub(updated, `Hapus video: ${target ? target.title : id}`);
+    videos = updated;
     closeForm();
+    renderTagBar();
+    renderGrid();
   }catch(err){
     console.error(err);
-    alert("Gagal hapus. Cek koneksi / aturan Firestore kamu.");
+    alert("Gagal hapus di GitHub: " + err.message);
   }
 });
 
@@ -293,15 +324,35 @@ document.getElementById("btnDelete").addEventListener("click", async () => {
 document.getElementById("btnAdd").addEventListener("click", () => openForm(null));
 
 document.getElementById("btnLogin").addEventListener("click", () => {
-  document.getElementById("fieldPasscode").value = "";
+  document.getElementById("fieldToken").value = "";
   document.getElementById("loginModal").hidden = false;
 });
 document.getElementById("btnLogout").addEventListener("click", logout);
-document.getElementById("loginForm").addEventListener("submit", (e) => {
+
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const code = document.getElementById("fieldPasscode").value;
-  if(login(code)){
+  const token = document.getElementById("fieldToken").value.trim();
+  if(!token) return;
+
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Memeriksa…";
+
+  try{
+    // Validasi token: coba GET file (butuh permission read minimal)
+    const res = await fetch(`${API_BASE}?ref=${GH_BRANCH}`, {
+      headers: { Authorization: `token ${token}`, Accept: "application/vnd.github+json" }
+    });
+    if(!res.ok) throw new Error("Token ditolak GitHub (status " + res.status + "). Cek scope/permission token.");
+
+    sessionStorage.setItem("gh_token", token);
     document.getElementById("loginModal").hidden = true;
+    updateAuthUI();
+  }catch(err){
+    alert("Login gagal: " + err.message);
+  }finally{
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Masuk";
   }
 });
 
@@ -327,5 +378,7 @@ document.getElementById("searchInput").addEventListener("input", (e) => {
   renderGrid();
 });
 
+// ---------- Init ----------
 document.getElementById("footerYear").textContent = new Date().getFullYear();
 updateAuthUI();
+loadVideos();
