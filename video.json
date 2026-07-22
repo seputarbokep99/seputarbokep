@@ -1,0 +1,11 @@
+[
+  {
+    "id": "seed-1",
+    "title": "Contoh: Big Buck Bunny",
+    "cover": "https://peach.blender.org/wp-content/uploads/title_anouncement.jpg",
+    "embed": "https://www.youtube.com/embed/YE7VzlLtp-4",
+    "tags": ["contoh", "animasi"],
+    "desc": "Ini cuma contoh entry. Login dulu (pakai GitHub token), lalu klik + Tambah Video buat isi koleksi kamu sendiri. Entry contoh ini bisa dihapus lewat tombol edit di pojok kanan atas cover.",
+    "createdAt": 0
+  }
+]
