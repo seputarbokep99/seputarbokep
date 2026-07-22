@@ -24,10 +24,18 @@ function isAuthed(){
 
 function updateAuthUI(){
   const loggedIn = isAuthed();
-  document.getElementById("btnAdd").hidden = !loggedIn;
-  document.getElementById("btnLogin").hidden = loggedIn;
-  document.getElementById("btnLogout").hidden = !loggedIn;
-  renderGrid(); // tombol edit di tiap card ikut nyala/mati sesuai status login
+  console.log("Login status:", loggedIn); // Debugging
+  
+  const btnAdd = document.getElementById("btnAdd");
+  const btnLogin = document.getElementById("btnLogin");
+  const btnLogout = document.getElementById("btnLogout");
+  
+  if (btnAdd) btnAdd.hidden = !loggedIn;
+  if (btnLogin) btnLogin.hidden = loggedIn;
+  if (btnLogout) btnLogout.hidden = !loggedIn;
+  
+  // Update edit buttons di cards
+  renderGrid();
 }
 
 function login(code){
@@ -43,6 +51,10 @@ function login(code){
 function logout(){
   sessionStorage.removeItem("sv_authed");
   updateAuthUI();
+  // Tutup modal jika terbuka
+  document.getElementById("loginModal").hidden = true;
+  closeForm();
+  closePlayer();
 }
 
 // ---------- Realtime listener dari Firestore ----------
@@ -51,14 +63,13 @@ const statusEl = document.getElementById("syncStatus");
 videosCol.orderBy("createdAt", "desc").onSnapshot((snapshot) => {
   videos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-  // Kalau koleksi masih kosong sama sekali (pertama kali dipakai), isi seed sekali.
   if(videos.length === 0 && !seeded && typeof SEED_VIDEOS !== "undefined"){
     seeded = true;
     SEED_VIDEOS.forEach(v => {
       const { id, ...rest } = v;
       videosCol.add({ ...rest, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     });
-    return; // snapshot listener bakal kepanggil lagi otomatis setelah seed masuk
+    return;
   }
 
   if(statusEl) statusEl.textContent = "";
@@ -219,7 +230,7 @@ function openPlayer(id){
 }
 function closePlayer(){
   document.getElementById("playerModal").hidden = true;
-  document.getElementById("playerIframe").src = ""; // stop playback
+  document.getElementById("playerIframe").src = "";
 }
 
 // ---------- Form modal (tambah / edit) ----------
@@ -290,42 +301,70 @@ document.getElementById("btnDelete").addEventListener("click", async () => {
 });
 
 // ---------- Wiring ----------
-document.getElementById("btnAdd").addEventListener("click", () => openForm(null));
-
-document.getElementById("btnLogin").addEventListener("click", () => {
-  document.getElementById("fieldPasscode").value = "";
-  document.getElementById("loginModal").hidden = false;
-});
-document.getElementById("btnLogout").addEventListener("click", logout);
-document.getElementById("loginForm").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const code = document.getElementById("fieldPasscode").value;
-  if(login(code)){
-    document.getElementById("loginModal").hidden = true;
+// Pastikan semua event listener terpasang dengan benar
+document.addEventListener("DOMContentLoaded", function() {
+  console.log("DOM loaded, setting up event listeners...");
+  
+  // Button listeners
+  const btnAdd = document.getElementById("btnAdd");
+  const btnLogin = document.getElementById("btnLogin");
+  const btnLogout = document.getElementById("btnLogout");
+  const searchInput = document.getElementById("searchInput");
+  
+  if (btnAdd) btnAdd.addEventListener("click", () => openForm(null));
+  if (btnLogin) btnLogin.addEventListener("click", () => {
+    document.getElementById("fieldPasscode").value = "";
+    document.getElementById("loginModal").hidden = false;
+  });
+  if (btnLogout) btnLogout.addEventListener("click", logout);
+  if (searchInput) {
+    searchInput.addEventListener("input", (e) => {
+      searchQuery = e.target.value;
+      currentPage = 1;
+      renderGrid();
+    });
   }
-});
 
-document.querySelectorAll("[data-close]").forEach(btn => {
-  btn.addEventListener("click", () => {
-    closeForm();
-    closePlayer();
-    document.getElementById("loginModal").hidden = true;
+  // Login form
+  document.getElementById("loginForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const code = document.getElementById("fieldPasscode").value;
+    if(login(code)){
+      document.getElementById("loginModal").hidden = true;
+    }
   });
-});
-document.querySelectorAll(".overlay").forEach(ov => {
-  ov.addEventListener("click", (e) => {
-    if(e.target === ov){ closeForm(); closePlayer(); ov.hidden = true; }
+
+  // Close buttons
+  document.querySelectorAll("[data-close]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      closeForm();
+      closePlayer();
+      document.getElementById("loginModal").hidden = true;
+    });
   });
-});
-document.addEventListener("keydown", (e) => {
-  if(e.key === "Escape"){ closeForm(); closePlayer(); document.getElementById("loginModal").hidden = true; }
-});
 
-document.getElementById("searchInput").addEventListener("input", (e) => {
-  searchQuery = e.target.value;
-  currentPage = 1;
-  renderGrid();
-});
+  // Overlay click to close
+  document.querySelectorAll(".overlay").forEach(ov => {
+    ov.addEventListener("click", (e) => {
+      if(e.target === ov){ 
+        closeForm(); 
+        closePlayer(); 
+        ov.hidden = true; 
+      }
+    });
+  });
 
-document.getElementById("footerYear").textContent = new Date().getFullYear();
-updateAuthUI();
+  // Escape key
+  document.addEventListener("keydown", (e) => {
+    if(e.key === "Escape"){ 
+      closeForm(); 
+      closePlayer(); 
+      document.getElementById("loginModal").hidden = true; 
+    }
+  });
+
+  document.getElementById("footerYear").textContent = new Date().getFullYear();
+  
+  // Initial UI update
+  updateAuthUI();
+});
