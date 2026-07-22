@@ -22,70 +22,27 @@ function isAuthed(){
   return sessionStorage.getItem("sv_authed") === "yes";
 }
 
-// ========== PERBAIKAN UTAMA: LOGIN/LOGOUT ==========
 function updateAuthUI(){
   const loggedIn = isAuthed();
-  console.log("🔄 Update UI - Login status:", loggedIn);
-  
-  const btnAdd = document.getElementById("btnAdd");
-  const btnLogin = document.getElementById("btnLogin");
-  const btnLogout = document.getElementById("btnLogout");
-  
-  // Pastikan semua tombol ada
-  if (!btnAdd || !btnLogin || !btnLogout) {
-    console.error("❌ Tombol tidak ditemukan di DOM!");
-    return;
-  }
-  
-  // Set visibility dengan benar
-  btnAdd.hidden = !loggedIn;
-  btnLogin.hidden = loggedIn;
-  btnLogout.hidden = !loggedIn;
-  
-  console.log("  ✅ btnAdd hidden:", btnAdd.hidden);
-  console.log("  ✅ btnLogin hidden:", btnLogin.hidden);
-  console.log("  ✅ btnLogout hidden:", btnLogout.hidden);
-  
-  // Update tombol edit di card
-  renderGrid();
+  document.getElementById("btnAdd").hidden = !loggedIn;
+  document.getElementById("btnLogin").hidden = loggedIn;
+  document.getElementById("btnLogout").hidden = !loggedIn;
+  renderGrid(); // tombol edit di tiap card ikut nyala/mati sesuai status login
 }
 
 function login(code){
-  console.log("🔐 Mencoba login dengan kode:", code);
-  
   if(code === ADMIN_PASSCODE){
     sessionStorage.setItem("sv_authed", "yes");
-    console.log("✅ Login berhasil!");
     updateAuthUI();
-    
-    // Tutup modal login
-    const loginModal = document.getElementById("loginModal");
-    if (loginModal) loginModal.hidden = true;
-    
-    // Reset form login
-    const loginForm = document.getElementById("loginForm");
-    if (loginForm) loginForm.reset();
-    
-    alert("✅ Login berhasil! Anda sekarang bisa menambah/edit video.");
     return true;
   }
-  
-  alert("❌ Kode admin salah! Silakan coba lagi.");
+  alert("Kode salah.");
   return false;
 }
 
 function logout(){
-  console.log("🚪 Logout...");
   sessionStorage.removeItem("sv_authed");
   updateAuthUI();
-  
-  // Tutup semua modal yang terbuka
-  document.getElementById("loginModal").hidden = true;
-  closeForm();
-  closePlayer();
-  
-  console.log("✅ Logout berhasil!");
-  alert("✅ Anda telah logout.");
 }
 
 // ---------- Realtime listener dari Firestore ----------
@@ -94,22 +51,22 @@ const statusEl = document.getElementById("syncStatus");
 videosCol.orderBy("createdAt", "desc").onSnapshot((snapshot) => {
   videos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-  // Seed data jika kosong
+  // Kalau koleksi masih kosong sama sekali (pertama kali dipakai), isi seed sekali.
   if(videos.length === 0 && !seeded && typeof SEED_VIDEOS !== "undefined"){
     seeded = true;
     SEED_VIDEOS.forEach(v => {
       const { id, ...rest } = v;
       videosCol.add({ ...rest, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     });
-    return;
+    return; // snapshot listener bakal kepanggil lagi otomatis setelah seed masuk
   }
 
   if(statusEl) statusEl.textContent = "";
   renderTagBar();
   renderGrid();
 }, (err) => {
-  console.error("❌ Firestore error:", err);
-  if(statusEl) statusEl.textContent = "⚠️ Gagal konek ke database. Cek firebase-config.js & aturan Firestore.";
+  console.error("Firestore error:", err);
+  if(statusEl) statusEl.textContent = "Gagal konek ke database. Cek firebase-config.js & aturan Firestore.";
 });
 
 function filterByTag(tag){
@@ -262,7 +219,7 @@ function openPlayer(id){
 }
 function closePlayer(){
   document.getElementById("playerModal").hidden = true;
-  document.getElementById("playerIframe").src = "";
+  document.getElementById("playerIframe").src = ""; // stop playback
 }
 
 // ---------- Form modal (tambah / edit) ----------
@@ -332,95 +289,43 @@ document.getElementById("btnDelete").addEventListener("click", async () => {
   }
 });
 
-// ========== EVENT LISTENERS - PERBAIKAN ==========
-document.addEventListener("DOMContentLoaded", function() {
-  console.log("🚀 DOM loaded, setting up event listeners...");
-  
-  // Tombol tambah video
-  const btnAdd = document.getElementById("btnAdd");
-  if (btnAdd) {
-    btnAdd.addEventListener("click", () => openForm(null));
-    console.log("  ✅ btnAdd listener attached");
-  }
-  
-  // Tombol login
-  const btnLogin = document.getElementById("btnLogin");
-  if (btnLogin) {
-    btnLogin.addEventListener("click", () => {
-      console.log("🔑 Login button clicked");
-      document.getElementById("fieldPasscode").value = "";
-      document.getElementById("loginModal").hidden = false;
-    });
-    console.log("  ✅ btnLogin listener attached");
-  }
-  
-  // Tombol logout
-  const btnLogout = document.getElementById("btnLogout");
-  if (btnLogout) {
-    btnLogout.addEventListener("click", logout);
-    console.log("  ✅ btnLogout listener attached");
-  }
+// ---------- Wiring ----------
+document.getElementById("btnAdd").addEventListener("click", () => openForm(null));
 
-  // Search input
-  const searchInput = document.getElementById("searchInput");
-  if (searchInput) {
-    searchInput.addEventListener("input", (e) => {
-      searchQuery = e.target.value;
-      currentPage = 1;
-      renderGrid();
-    });
-    console.log("  ✅ searchInput listener attached");
-  }
-
-  // Login form
-  const loginForm = document.getElementById("loginForm");
-  if (loginForm) {
-    loginForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const code = document.getElementById("fieldPasscode").value;
-      login(code);
-    });
-    console.log("  ✅ loginForm listener attached");
-  }
-
-  // Close buttons
-  document.querySelectorAll("[data-close]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      closeForm();
-      closePlayer();
-      document.getElementById("loginModal").hidden = true;
-    });
-  });
-  console.log("  ✅ close buttons listeners attached");
-
-  // Overlay click to close
-  document.querySelectorAll(".overlay").forEach(ov => {
-    ov.addEventListener("click", (e) => {
-      if(e.target === ov){ 
-        closeForm(); 
-        closePlayer(); 
-        ov.hidden = true; 
-      }
-    });
-  });
-  console.log("  ✅ overlay listeners attached");
-
-  // Escape key
-  document.addEventListener("keydown", (e) => {
-    if(e.key === "Escape"){ 
-      closeForm(); 
-      closePlayer(); 
-      document.getElementById("loginModal").hidden = true; 
-    }
-  });
-  console.log("  ✅ escape key listener attached");
-
-  // Footer year
-  document.getElementById("footerYear").textContent = new Date().getFullYear();
-  
-  // Initial UI update
-  console.log("🔄 Initial UI update...");
-  updateAuthUI();
-  
-  console.log("✅ All setup complete!");
+document.getElementById("btnLogin").addEventListener("click", () => {
+  document.getElementById("fieldPasscode").value = "";
+  document.getElementById("loginModal").hidden = false;
 });
+document.getElementById("btnLogout").addEventListener("click", logout);
+document.getElementById("loginForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const code = document.getElementById("fieldPasscode").value;
+  if(login(code)){
+    document.getElementById("loginModal").hidden = true;
+  }
+});
+
+document.querySelectorAll("[data-close]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    closeForm();
+    closePlayer();
+    document.getElementById("loginModal").hidden = true;
+  });
+});
+document.querySelectorAll(".overlay").forEach(ov => {
+  ov.addEventListener("click", (e) => {
+    if(e.target === ov){ closeForm(); closePlayer(); ov.hidden = true; }
+  });
+});
+document.addEventListener("keydown", (e) => {
+  if(e.key === "Escape"){ closeForm(); closePlayer(); document.getElementById("loginModal").hidden = true; }
+});
+
+document.getElementById("searchInput").addEventListener("input", (e) => {
+  searchQuery = e.target.value;
+  currentPage = 1;
+  renderGrid();
+});
+
+document.getElementById("footerYear").textContent = new Date().getFullYear();
+updateAuthUI();
