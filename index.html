@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StreamVault</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">◎</span>
+      <span class="brand-name">StreamVault</span>
+    </div>
+
+    <div class="searchwrap">
+      <input id="searchInput" type="text" placeholder="Cari judul atau tag…" autocomplete="off">
+    </div>
+
+    <div class="topbar-actions">
+      <button id="btnAdd" class="btn btn-primary">+ Tambah Video</button>
+      <button id="btnExport" class="btn btn-ghost" title="Export koleksi ke file JSON">Export</button>
+      <label class="btn btn-ghost" for="importFile" title="Import koleksi dari file JSON">Import
+        <input type="file" id="importFile" accept="application/json" hidden>
+      </label>
+    </div>
+  </header>
+
+  <nav id="tagBar" class="tagbar"></nav>
+
+  <main>
+    <section id="grid" class="grid"></section>
+    <p id="emptyState" class="empty-state" hidden>Belum ada video. Klik <b>+ Tambah Video</b> buat mulai koleksi kamu.</p>
+  </main>
+
+  <!-- Modal: tambah / edit -->
+  <div id="formModal" class="overlay" hidden>
+    <div class="modal">
+      <button class="modal-close" data-close>✕</button>
+      <h2 id="formTitle">Tambah Video</h2>
+      <form id="videoForm">
+        <input type="hidden" id="videoId">
+
+        <label>Judul
+          <input type="text" id="fieldTitle" required placeholder="Contoh: Perjalanan ke Timur">
+        </label>
+
+        <label>URL Cover (gambar)
+          <input type="url" id="fieldCover" required placeholder="https://…/poster.jpg">
+        </label>
+
+        <label>URL Embed (iframe / video src)
+          <input type="url" id="fieldEmbed" required placeholder="https://…/embed/xxxx">
+        </label>
+
+        <label>Tag (pisahkan koma)
+          <input type="text" id="fieldTags" placeholder="drama, 2024, series">
+        </label>
+
+        <label>Sinopsis (opsional)
+          <textarea id="fieldDesc" rows="3" placeholder="Ringkasan singkat…"></textarea>
+        </label>
+
+        <div class="form-actions">
+          <button type="button" id="btnDelete" class="btn btn-danger" hidden>Hapus</button>
+          <button type="submit" class="btn btn-primary">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: player -->
+  <div id="playerModal" class="overlay" hidden>
+    <div class="modal modal-player">
+      <button class="modal-close" data-close>✕</button>
+      <div class="player-frame">
+        <iframe id="playerIframe" src="" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture"></iframe>
+      </div>
+      <div class="player-meta">
+        <h2 id="playerTitle"></h2>
+        <div id="playerTags" class="tag-row"></div>
+        <p id="playerDesc"></p>
+        <button id="btnEditFromPlayer" class="btn btn-ghost">Edit video ini</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
