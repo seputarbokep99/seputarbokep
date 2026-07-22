@@ -105,6 +105,15 @@ function renderGrid(){
   grid.innerHTML = "";
   empty.hidden = filtered.length > 0;
 
+  const countEl = document.getElementById("videoCount");
+  if(countEl){
+    if(filtered.length === videos.length){
+      countEl.textContent = `${videos.length} video`;
+    } else {
+      countEl.textContent = `Menampilkan ${filtered.length} dari ${videos.length} video`;
+    }
+  }
+
   filtered.forEach(v => {
     const card = document.createElement("div");
     card.className = "card";
