@@ -25,6 +25,15 @@ function parseTags(str){
   return str.split(",").map(t => t.trim()).filter(Boolean);
 }
 
+function filterByTag(tag){
+  activeTag = (activeTag === tag ? null : tag);
+  document.getElementById("searchInput").value = "";
+  searchQuery = "";
+  renderTagBar();
+  renderGrid();
+  closePlayer();
+}
+
 // ---------- Render tag bar ----------
 function renderTagBar(){
   const bar = document.getElementById("tagBar");
@@ -41,7 +50,7 @@ function renderTagBar(){
     const chip = document.createElement("button");
     chip.className = "tag-chip" + (activeTag === tag ? " active" : "");
     chip.textContent = tag;
-    chip.onclick = () => { activeTag = (activeTag === tag ? null : tag); renderTagBar(); renderGrid(); };
+    chip.onclick = () => filterByTag(tag);
     bar.appendChild(chip);
   });
 }
@@ -73,11 +82,17 @@ function renderGrid(){
       <div class="card-body">
         <p class="card-title">${escapeHtml(v.title)}</p>
         <div class="card-tags">
-          ${(v.tags||[]).slice(0,3).map(t => `<span class="mini-tag">${escapeHtml(t)}</span>`).join("")}
+          ${(v.tags||[]).slice(0,3).map(t => `<span class="mini-tag" data-tag="${escapeAttr(t)}">${escapeHtml(t)}</span>`).join("")}
         </div>
       </div>
     `;
     card.addEventListener("click", (e) => {
+      const tagEl = e.target.closest("[data-tag]");
+      if(tagEl){
+        e.stopPropagation();
+        filterByTag(tagEl.dataset.tag);
+        return;
+      }
       if(e.target.closest("[data-edit]")) return;
       openPlayer(v.id);
     });
@@ -101,8 +116,12 @@ function openPlayer(id){
   document.getElementById("playerIframe").src = v.embed;
   document.getElementById("playerTitle").textContent = v.title;
   document.getElementById("playerDesc").textContent = v.desc || "";
-  document.getElementById("playerTags").innerHTML =
-    (v.tags||[]).map(t => `<span class="mini-tag">${escapeHtml(t)}</span>`).join("");
+  const playerTagsEl = document.getElementById("playerTags");
+  playerTagsEl.innerHTML =
+    (v.tags||[]).map(t => `<span class="mini-tag" data-tag="${escapeAttr(t)}">${escapeHtml(t)}</span>`).join("");
+  playerTagsEl.querySelectorAll("[data-tag]").forEach(el => {
+    el.addEventListener("click", () => filterByTag(el.dataset.tag));
+  });
   document.getElementById("btnEditFromPlayer").onclick = () => {
     closePlayer();
     openForm(v.id);
