@@ -1,6 +1,6 @@
 // =========================================================
-// ISI BAGIAN INI dengan config project Firebase kamu sendiri.
-// Cara dapetinnya ada di README.md bagian "Setup Firebase".
+// KONFIGURASI FIREBASE - Ganti dengan punya kamu sendiri
+// Cara dapetinnya: https://console.firebase.google.com
 // =========================================================
 const firebaseConfig = {
   apiKey: "AIzaSyBiWL8OR-h-YKrwi_jyTzaVU4MVDFlyMpo",
@@ -11,8 +11,7 @@ const firebaseConfig = {
   appId: "1:719473682207:web:929c2fb1e3a7b5c713b22a"
 };
 
-// Kode admin sederhana buat proteksi tombol Tambah/Edit/Hapus.
-// PENTING: ini BUKAN keamanan yang kuat (siapa pun yang buka DevTools
-// bisa lihat kode ini di script). Cukup buat nyaring pengunjung random,
-// bukan buat data rahasia/sensitif. Ganti sesuka kamu.
+// KODE ADMIN - GANTI SESUAI KEINGINAN ANDA
+// ⚠️ INI BUKAN KEAMANAN YANG KUAT! Hanya untuk filter pengunjung random.
+// Jangan gunakan untuk data sensitif.
 const ADMIN_PASSCODE = "123445678";
