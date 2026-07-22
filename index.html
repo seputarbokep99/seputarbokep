@@ -43,11 +43,12 @@
   <div id="loginModal" class="overlay" hidden>
     <div class="modal">
       <button class="modal-close" data-close>✕</button>
-      <h2>Login Admin</h2>
+      <h2>Login dengan GitHub Token</h2>
       <form id="loginForm">
-        <label>Kode Admin
-          <input type="password" id="fieldPasscode" required placeholder="Masukkan kode admin">
+        <label>Personal Access Token
+          <input type="password" id="fieldToken" required placeholder="ghp_xxx atau github_pat_xxx" autocomplete="off">
         </label>
+        <p class="field-hint">Token fine-grained yang cuma diizinkan akses repo ini, permission "Contents: Read and write". Lihat README buat cara bikinnya.</p>
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">Masuk</button>
         </div>
@@ -102,16 +103,12 @@
         <h2 id="playerTitle"></h2>
         <div id="playerTags" class="tag-row"></div>
         <p id="playerDesc"></p>
-        <button id="btnEditFromPlayer" class="btn btn-ghost">Edit video ini</button>
+        <button id="btnEditFromPlayer" class="btn btn-ghost" hidden>Edit video ini</button>
       </div>
     </div>
   </div>
 
-  <!-- Firebase (biar data video sama buat semua orang, bukan cuma di browser sendiri) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js"></script>
-  <script src="data.js"></script>
+  <script src="config.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
