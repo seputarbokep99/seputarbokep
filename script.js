@@ -1,21 +1,12 @@
-const STORAGE_KEY = "streamvault_videos_v1";
+// ---------- Firebase init ----------
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const videosCol = db.collection("videos");
 
-let videos = loadVideos();
+let videos = [];
 let activeTag = null;
 let searchQuery = "";
-
-function loadVideos(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw) return JSON.parse(raw);
-  }catch(e){ console.warn("Gagal baca localStorage:", e); }
-  // belum ada data tersimpan -> pakai seed
-  return typeof SEED_VIDEOS !== "undefined" ? [...SEED_VIDEOS] : [];
-}
-
-function saveVideos(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(videos));
-}
+let seeded = false;
 
 function uid(){
   return "v-" + Date.now() + "-" + Math.random().toString(36).slice(2,7);
@@ -24,6 +15,48 @@ function uid(){
 function parseTags(str){
   return str.split(",").map(t => t.trim()).filter(Boolean);
 }
+
+function isAuthed(){
+  return sessionStorage.getItem("sv_authed") === "yes";
+}
+
+// Minta kode admin sebelum aksi tulis (tambah/edit/hapus).
+// Dicek sekali per tab (sessionStorage), bukan enkripsi/keamanan kuat.
+function requireAuth(){
+  if(isAuthed()) return true;
+  const code = prompt("Masukkan kode admin buat nambah/edit video:");
+  if(code === null) return false;
+  if(code === ADMIN_PASSCODE){
+    sessionStorage.setItem("sv_authed", "yes");
+    return true;
+  }
+  alert("Kode salah.");
+  return false;
+}
+
+// ---------- Realtime listener dari Firestore ----------
+const statusEl = document.getElementById("syncStatus");
+
+videosCol.orderBy("createdAt", "desc").onSnapshot((snapshot) => {
+  videos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+  // Kalau koleksi masih kosong sama sekali (pertama kali dipakai), isi seed sekali.
+  if(videos.length === 0 && !seeded && typeof SEED_VIDEOS !== "undefined"){
+    seeded = true;
+    SEED_VIDEOS.forEach(v => {
+      const { id, ...rest } = v;
+      videosCol.add({ ...rest, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+    return; // snapshot listener bakal kepanggil lagi otomatis setelah seed masuk
+  }
+
+  if(statusEl) statusEl.textContent = "";
+  renderTagBar();
+  renderGrid();
+}, (err) => {
+  console.error("Firestore error:", err);
+  if(statusEl) statusEl.textContent = "Gagal konek ke database. Cek firebase-config.js & aturan Firestore.";
+});
 
 function filterByTag(tag){
   activeTag = (activeTag === tag ? null : tag);
@@ -98,6 +131,7 @@ function renderGrid(){
     });
     card.querySelector("[data-edit]").addEventListener("click", (e) => {
       e.stopPropagation();
+      if(!requireAuth()) return;
       openForm(v.id);
     });
     grid.appendChild(card);
@@ -123,6 +157,7 @@ function openPlayer(id){
     el.addEventListener("click", () => filterByTag(el.dataset.tag));
   });
   document.getElementById("btnEditFromPlayer").onclick = () => {
+    if(!requireAuth()) return;
     closePlayer();
     openForm(v.id);
   };
@@ -156,11 +191,10 @@ function closeForm(){
   document.getElementById("formModal").hidden = true;
 }
 
-document.getElementById("videoForm").addEventListener("submit", (e) => {
+document.getElementById("videoForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const id = document.getElementById("videoId").value;
   const entry = {
-    id: id || uid(),
     title: document.getElementById("fieldTitle").value.trim(),
     cover: document.getElementById("fieldCover").value.trim(),
     embed: document.getElementById("fieldEmbed").value.trim(),
@@ -168,30 +202,44 @@ document.getElementById("videoForm").addEventListener("submit", (e) => {
     desc: document.getElementById("fieldDesc").value.trim()
   };
 
-  if(id){
-    videos = videos.map(v => v.id === id ? entry : v);
-  } else {
-    videos.unshift(entry);
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Menyimpan…";
+
+  try{
+    if(id){
+      await videosCol.doc(id).update(entry);
+    } else {
+      await videosCol.add({ ...entry, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    closeForm();
+  }catch(err){
+    console.error(err);
+    alert("Gagal simpan ke database. Cek koneksi / aturan Firestore kamu.");
+  }finally{
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Simpan";
   }
-  saveVideos();
-  closeForm();
-  renderTagBar();
-  renderGrid();
 });
 
-document.getElementById("btnDelete").addEventListener("click", () => {
+document.getElementById("btnDelete").addEventListener("click", async () => {
   const id = document.getElementById("videoId").value;
   if(!id) return;
-  if(!confirm("Hapus video ini dari koleksi?")) return;
-  videos = videos.filter(v => v.id !== id);
-  saveVideos();
-  closeForm();
-  renderTagBar();
-  renderGrid();
+  if(!confirm("Hapus video ini dari koleksi buat SEMUA orang?")) return;
+  try{
+    await videosCol.doc(id).delete();
+    closeForm();
+  }catch(err){
+    console.error(err);
+    alert("Gagal hapus. Cek koneksi / aturan Firestore kamu.");
+  }
 });
 
 // ---------- Wiring ----------
-document.getElementById("btnAdd").addEventListener("click", () => openForm(null));
+document.getElementById("btnAdd").addEventListener("click", () => {
+  if(!requireAuth()) return;
+  openForm(null);
+});
 document.querySelectorAll("[data-close]").forEach(btn => {
   btn.addEventListener("click", () => {
     closeForm();
@@ -212,7 +260,7 @@ document.getElementById("searchInput").addEventListener("input", (e) => {
   renderGrid();
 });
 
-// ---------- Export / Import ----------
+// ---------- Export / Import (tetep berguna buat backup) ----------
 document.getElementById("btnExport").addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(videos, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -226,24 +274,27 @@ document.getElementById("btnExport").addEventListener("click", () => {
 document.getElementById("importFile").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if(!file) return;
+  if(!requireAuth()){ e.target.value = ""; return; }
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try{
       const imported = JSON.parse(reader.result);
       if(!Array.isArray(imported)) throw new Error("Format bukan array");
-      videos = imported;
-      saveVideos();
-      renderTagBar();
-      renderGrid();
-      alert("Koleksi berhasil di-import (" + imported.length + " video).");
+      if(!confirm(`Import ${imported.length} video ke database bersama? Ini nambahin, bukan menimpa.`)) return;
+
+      const batch = db.batch();
+      imported.forEach(item => {
+        const { id, ...rest } = item;
+        const ref = videosCol.doc(); // id baru dari Firestore
+        batch.set(ref, { ...rest, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      });
+      await batch.commit();
+      alert("Import selesai.");
     }catch(err){
-      alert("Gagal import: file JSON tidak valid.");
+      console.error(err);
+      alert("Gagal import: file JSON tidak valid atau gagal simpan ke database.");
     }
     e.target.value = "";
   };
   reader.readAsText(file);
 });
-
-// ---------- Init ----------
-renderTagBar();
-renderGrid();
