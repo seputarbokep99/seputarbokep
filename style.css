@@ -4,7 +4,7 @@
   --bg-card: #1c1c22;
   --text: #f2f1ec;
   --text-dim: #a8a6a0;
-  --accent: #e3b23c;
+  --accent: #e3b23c;   /* marquee gold */
   --accent-dim: #7a5f22;
   --danger: #c1443a;
   --border: #2a2a31;
@@ -71,12 +71,7 @@ body{
   outline-offset:1px;
 }
 
-.topbar-actions{ 
-  display:flex; 
-  gap:10px; 
-  flex-shrink:0; 
-  align-items: center;
-}
+.topbar-actions{ display:flex; gap:10px; flex-shrink:0; }
 
 .btn{
   border:none;
@@ -169,11 +164,6 @@ body{
   background: rgba(255,255,255,0.06);
   padding:2px 7px;
   border-radius:999px;
-  cursor:pointer;
-  transition: background 0.2s;
-}
-.mini-tag:hover{
-  background: rgba(255,255,255,0.12);
 }
 
 .card-edit{
