@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>StreamVault</title>
+<title>Seputar Bokep 99</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark">◎</span>
-      <span class="brand-name">StreamVault</span>
+      <span class="brand-name">Seputar Bokep 99</span>
     </div>
 
     <div class="searchwrap">
@@ -19,7 +19,9 @@
     </div>
 
     <div class="topbar-actions">
-      <button id="btnAdd" class="btn btn-primary">+ Tambah Video</button>
+      <button id="btnAdd" class="btn btn-primary" hidden>+ Tambah Video</button>
+      <button id="btnLogin" class="btn btn-ghost">Login</button>
+      <button id="btnLogout" class="btn btn-ghost" hidden>Logout</button>
     </div>
   </header>
 
@@ -29,8 +31,29 @@
 
   <main>
     <section id="grid" class="grid"></section>
-    <p id="emptyState" class="empty-state" hidden>Belum ada video. Klik <b>+ Tambah Video</b> buat mulai koleksi kamu.</p>
+    <p id="emptyState" class="empty-state" hidden>Belum ada video.</p>
+    <nav id="pagination" class="pagination"></nav>
   </main>
+
+  <footer class="site-footer">
+    <p>© <span id="footerYear"></span> Seputar Bokep 99. Seluruh hak cipta dilindungi.</p>
+  </footer>
+
+  <!-- Modal: login -->
+  <div id="loginModal" class="overlay" hidden>
+    <div class="modal">
+      <button class="modal-close" data-close>✕</button>
+      <h2>Login Admin</h2>
+      <form id="loginForm">
+        <label>Kode Admin
+          <input type="password" id="fieldPasscode" required placeholder="Masukkan kode admin">
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Masuk</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- Modal: tambah / edit -->
   <div id="formModal" class="overlay" hidden>
