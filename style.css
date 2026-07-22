@@ -183,6 +183,13 @@ body{
 }
 .card:hover .card-edit{ opacity:1; }
 
+.video-count{
+  color: var(--text-dim);
+  font-size:13px;
+  padding: 0 28px;
+  margin: 10px 0 0;
+}
+
 .sync-status{
   color: var(--danger);
   font-size:13px;
